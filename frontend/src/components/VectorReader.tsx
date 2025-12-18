@@ -5,6 +5,7 @@ import {
     searchVectorsByCollectionName,
     createCollection,
     deleteCollection,
+    getDocumentDownloadUrl,
     VectorData,
     CollectionInfo,
     SearchResult
@@ -550,41 +551,89 @@ const VectorReader: React.FC = () => {
                         </div>
                     ) : (
                         <div className="vector-list" style={{ maxHeight: '450px', overflowY: 'auto' }}>
-                            {displayVectors.map((vector, index) => (
-                                <div
-                                    key={vector.id}
-                                    className="vector-item vector-item-clickable"
-                                    onClick={() => setViewingVector(vector)}
-                                    style={{ padding: 'var(--spacing-md)' }}
-                                >
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                            {isSearchMode && (
-                                                <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>
-                                                    #{index + 1} - {((('score' in vector && vector.score) ? vector.score : 0) * 100).toFixed(0)}%
+                            {displayVectors.map((vector, index) => {
+                                const isDocument = vector.metadata?.source_type === 'document';
+                                const docFormat = vector.metadata?.document_format?.toUpperCase() || '';
+                                const docIcon = isDocument ? (
+                                    docFormat === 'PDF' ? '📕' :
+                                        docFormat === 'DOCX' ? '📘' :
+                                            docFormat === 'XLSX' || docFormat === 'XLS' ? '📗' :
+                                                docFormat === 'CSV' ? '📊' :
+                                                    docFormat === 'JSON' ? '📋' : '📄'
+                                ) : '🧠';
+
+                                const handleDownload = async (e: React.MouseEvent) => {
+                                    e.stopPropagation();
+                                    try {
+                                        const result = await getDocumentDownloadUrl(vector.id, undefined, selectedCollection || undefined);
+                                        window.open(result.download_url, '_blank');
+                                    } catch (err) {
+                                        console.error('Erro ao baixar documento:', err);
+                                    }
+                                };
+
+                                return (
+                                    <div
+                                        key={vector.id}
+                                        className="vector-item vector-item-clickable"
+                                        onClick={() => setViewingVector(vector)}
+                                        style={{ padding: 'var(--spacing-md)' }}
+                                    >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                <span style={{ fontSize: '1.2rem' }}>{docIcon}</span>
+                                                {isSearchMode && (
+                                                    <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>
+                                                        #{index + 1} - {((('score' in vector && vector.score) ? vector.score : 0) * 100).toFixed(0)}%
+                                                    </span>
+                                                )}
+                                                <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
+                                                    {vector.id.slice(0, 8)}...
                                                 </span>
-                                            )}
-                                            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
-                                                {vector.id.slice(0, 8)}...
-                                            </span>
-                                            {vector.text.includes('```') && (
-                                                <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>💻 Código</span>
+                                                {isDocument && (
+                                                    <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>
+                                                        📎 {docFormat}
+                                                    </span>
+                                                )}
+                                                {vector.metadata?.is_multipage && (
+                                                    <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>
+                                                        📑 {vector.metadata.total_pages} págs
+                                                    </span>
+                                                )}
+                                                {vector.text.includes('```') && (
+                                                    <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>💻 Código</span>
+                                                )}
+                                            </div>
+                                            {isDocument && (
+                                                <button
+                                                    className="btn btn-secondary btn-sm"
+                                                    onClick={handleDownload}
+                                                    style={{ padding: '4px 8px', fontSize: '0.7rem' }}
+                                                    title={`Baixar ${vector.metadata?.document_name || 'documento'}`}
+                                                >
+                                                    ⬇️ Download
+                                                </button>
                                             )}
                                         </div>
+                                        {isDocument && vector.metadata?.document_name && (
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--color-accent-primary)', marginBottom: '4px' }}>
+                                                📁 {vector.metadata.document_name}
+                                            </div>
+                                        )}
+                                        <p style={{
+                                            fontSize: '0.9rem',
+                                            margin: 0,
+                                            lineHeight: '1.5',
+                                            color: 'var(--color-text-secondary)'
+                                        }}>
+                                            {truncateText(vector.text)}
+                                        </p>
+                                        <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', marginTop: '8px' }}>
+                                            {isDocument ? 'Documento vetorizado - clique para detalhes' : 'Clique para ver detalhes e buscar similares'}
+                                        </div>
                                     </div>
-                                    <p style={{
-                                        fontSize: '0.9rem',
-                                        margin: 0,
-                                        lineHeight: '1.5',
-                                        color: 'var(--color-text-secondary)'
-                                    }}>
-                                        {truncateText(vector.text)}
-                                    </p>
-                                    <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', marginTop: '8px' }}>
-                                        Clique para ver detalhes e buscar similares
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>

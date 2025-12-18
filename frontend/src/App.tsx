@@ -4,6 +4,7 @@ import VectorReader from './components/VectorReader';
 import VectorWriter from './components/VectorWriter';
 import VectorManager from './components/VectorManager';
 import VectorSearch from './components/VectorSearch';
+import DocumentUploader from './components/DocumentUploader';
 import './styles.css';
 
 const Navigation: React.FC = () => {
@@ -18,6 +19,9 @@ const Navigation: React.FC = () => {
       </Link>
       <Link to="/manage" className={`nav-link ${isActive('/manage') ? 'active' : ''}`}>
         🧠 Gerenciar
+      </Link>
+      <Link to="/upload" className={`nav-link ${isActive('/upload') ? 'active' : ''}`}>
+        📁 Upload
       </Link>
       <Link to="/search" className={`nav-link ${isActive('/search') ? 'active' : ''}`}>
         🔍 Buscar
@@ -111,6 +115,7 @@ const App: React.FC = () => {
       <Navigation />
       <Switch>
         <Route path="/manage" component={VectorManager} />
+        <Route path="/upload" component={DocumentUploader} />
         <Route path="/search" component={VectorSearch} />
         <Route path="/read" component={VectorReader} />
         <Route path="/write" component={VectorWriter} />

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { searchVectors, SearchResult } from '../services/api';
+import { searchVectors, getDocumentDownloadUrl, SearchResult } from '../services/api';
 
 const VectorSearch: React.FC = () => {
     const [query, setQuery] = useState('');
@@ -154,45 +154,100 @@ const VectorSearch: React.FC = () => {
                     </div>
                 ) : (
                     <div className="vector-list">
-                        {results.map((result, index) => (
-                            <div key={result.id} className="search-result">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--spacing-sm)' }}>
-                                    <div className="search-score">
-                                        <span style={{
-                                            fontSize: '1.25rem',
-                                            fontWeight: 700,
-                                            color: getScoreColor(result.score)
+                        {results.map((result, index) => {
+                            const isDocument = result.metadata?.source_type === 'document';
+                            const docFormat = result.metadata?.document_format?.toUpperCase() || '';
+                            const docIcon = isDocument ? (
+                                docFormat === 'PDF' ? '📕' :
+                                    docFormat === 'DOCX' ? '📘' :
+                                        docFormat === 'XLSX' || docFormat === 'XLS' ? '📗' :
+                                            docFormat === 'CSV' ? '📊' :
+                                                docFormat === 'JSON' ? '📋' : '📄'
+                            ) : '🧠';
+
+                            const handleDownload = async () => {
+                                try {
+                                    const downloadResult = await getDocumentDownloadUrl(
+                                        result.id,
+                                        user || undefined,
+                                        collection || undefined
+                                    );
+                                    window.open(downloadResult.download_url, '_blank');
+                                } catch (err) {
+                                    console.error('Erro ao baixar documento:', err);
+                                }
+                            };
+
+                            return (
+                                <div key={result.id} className="search-result">
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--spacing-sm)' }}>
+                                        <div className="search-score">
+                                            <span style={{
+                                                fontSize: '1.25rem',
+                                                fontWeight: 700,
+                                                color: getScoreColor(result.score)
+                                            }}>
+                                                {docIcon} #{index + 1}
+                                            </span>
+                                            <span style={{ color: getScoreColor(result.score) }}>
+                                                {(result.score * 100).toFixed(1)}% similar
+                                            </span>
+                                            <div className="search-score-bar">
+                                                <div
+                                                    className="search-score-fill"
+                                                    style={{
+                                                        width: `${result.score * 100}%`,
+                                                        background: getScoreColor(result.score)
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span className="vector-id">{result.id.slice(0, 8)}...</span>
+                                            {isDocument && (
+                                                <button
+                                                    className="btn btn-secondary btn-sm"
+                                                    onClick={handleDownload}
+                                                    style={{ padding: '4px 8px', fontSize: '0.7rem' }}
+                                                    title={`Baixar ${result.metadata?.document_name || 'documento'}`}
+                                                >
+                                                    ⬇️ Download
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {isDocument && result.metadata?.document_name && (
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            marginBottom: 'var(--spacing-sm)',
+                                            fontSize: '0.85rem',
+                                            color: 'var(--color-accent-primary)'
                                         }}>
-                                            #{index + 1}
-                                        </span>
-                                        <span style={{ color: getScoreColor(result.score) }}>
-                                            {(result.score * 100).toFixed(1)}% similar
-                                        </span>
-                                        <div className="search-score-bar">
-                                            <div
-                                                className="search-score-fill"
-                                                style={{
-                                                    width: `${result.score * 100}%`,
-                                                    background: getScoreColor(result.score)
-                                                }}
-                                            />
+                                            📁 {result.metadata.document_name}
+                                            {result.metadata.is_multipage && (
+                                                <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>
+                                                    📑 {result.metadata.total_pages} págs
+                                                </span>
+                                            )}
                                         </div>
-                                    </div>
-                                    <span className="vector-id">{result.id.slice(0, 8)}...</span>
+                                    )}
+
+                                    <p className="vector-text">{result.text}</p>
+
+                                    {result.metadata && Object.keys(result.metadata).length > 0 && (
+                                        <div className="vector-metadata">
+                                            <div className="vector-metadata-label">Metadados</div>
+                                            <div className="vector-metadata-content">
+                                                {JSON.stringify(result.metadata)}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-
-                                <p className="vector-text">{result.text}</p>
-
-                                {result.metadata && Object.keys(result.metadata).length > 0 && (
-                                    <div className="vector-metadata">
-                                        <div className="vector-metadata-label">Metadados</div>
-                                        <div className="vector-metadata-content">
-                                            {JSON.stringify(result.metadata)}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

@@ -262,5 +262,98 @@ export const deleteCollection = async (collectionName: string): Promise<{ messag
     }
 };
 
+// =====================
+// DOCUMENTOS API
+// =====================
+
+export interface DocumentUploadResult {
+    id: string;
+    text_preview: string;
+    document_url: string;
+    document_name: string;
+    document_format: string;
+    total_pages: number;
+    is_multipage: boolean;
+}
+
+export interface DocumentDownloadResult {
+    download_url: string;
+    document_name: string;
+    expires_in_seconds: number;
+}
+
+/**
+ * Faz upload de um documento para vetorização
+ */
+export const uploadDocument = async (
+    file: File,
+    user?: string,
+    collection?: string,
+    onProgress?: (progress: number) => void
+): Promise<DocumentUploadResult> => {
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await axios.post(
+            `${API_BASE_URL}/documents/upload${buildParams(user, collection)}`,
+            formData,
+            {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+                onUploadProgress: (progressEvent) => {
+                    if (onProgress && progressEvent.total) {
+                        const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                        onProgress(progress);
+                    }
+                },
+            }
+        );
+        return response.data;
+    } catch (error) {
+        console.error('Erro ao fazer upload do documento:', error);
+        throw parseApiError(error);
+    }
+};
+
+/**
+ * Obtém URL de download de um documento
+ */
+export const getDocumentDownloadUrl = async (
+    documentId: string,
+    user?: string,
+    collection?: string
+): Promise<DocumentDownloadResult> => {
+    try {
+        const response = await axios.get(
+            `${API_BASE_URL}/documents/${documentId}/download${buildParams(user, collection)}`
+        );
+        return response.data;
+    } catch (error) {
+        console.error('Erro ao obter URL de download:', error);
+        throw parseApiError(error);
+    }
+};
+
+/**
+ * Remove um documento (vetor + arquivo)
+ */
+export const deleteDocument = async (
+    documentId: string,
+    user?: string,
+    collection?: string
+): Promise<{ message: string; id: string }> => {
+    try {
+        const response = await axios.delete(
+            `${API_BASE_URL}/documents/${documentId}${buildParams(user, collection)}`
+        );
+        return response.data;
+    } catch (error) {
+        console.error('Erro ao deletar documento:', error);
+        throw parseApiError(error);
+    }
+};
+
 // Alias para compatibilidade
 export const saveVectorData = saveVector;

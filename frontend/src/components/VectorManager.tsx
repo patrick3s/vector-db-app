@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchVectors, saveVector, updateVector, deleteVector, VectorData } from '../services/api';
+import { fetchVectors, saveVector, updateVector, deleteVector, getDocumentDownloadUrl, VectorData } from '../services/api';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -491,6 +491,17 @@ const VectorManager: React.FC = () => {
                                                         🏷️ {Array.isArray(tag) ? tag.join(', ') : tag}
                                                     </span>
                                                 )}
+                                                {/* Document type indicator */}
+                                                {metadata.source_type === 'document' && (
+                                                    <span className="badge badge-primary" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                                                        📎 {(metadata.document_format || '').toUpperCase()}
+                                                    </span>
+                                                )}
+                                                {metadata.is_multipage && (
+                                                    <span className="badge badge-info" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                                                        📑 {metadata.total_pages} págs
+                                                    </span>
+                                                )}
                                                 {type && (
                                                     <span className="badge badge-info" style={{ fontSize: '0.65rem', padding: '2px 6px', background: 'var(--color-accent)', color: 'white' }}>
                                                         📋 {type}
@@ -513,6 +524,23 @@ const VectorManager: React.FC = () => {
                                                 )}
                                             </div>
                                             <div className="vector-actions" onClick={(e) => e.stopPropagation()}>
+                                                {metadata.source_type === 'document' && (
+                                                    <button
+                                                        className="btn btn-secondary btn-icon"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const result = await getDocumentDownloadUrl(vector.id, user || undefined, collection || undefined);
+                                                                window.open(result.download_url, '_blank');
+                                                            } catch (err) {
+                                                                console.error('Erro ao baixar:', err);
+                                                            }
+                                                        }}
+                                                        title={`Baixar ${metadata.document_name || 'documento'}`}
+                                                        style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                                    >
+                                                        ⬇️
+                                                    </button>
+                                                )}
                                                 <button
                                                     className="btn btn-secondary btn-icon"
                                                     onClick={() => setEditingVector(vector)}
