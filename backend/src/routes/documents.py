@@ -3,7 +3,7 @@ Documents API Routes - Upload, download e gerenciamento de documentos
 """
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query, status
 from pydantic import BaseModel
 
@@ -11,16 +11,23 @@ from ..services.minio_service import get_minio_service
 from ..services.document_service import get_document_service
 from ..services.vector_db_service import get_db_service
 from ..services.ollama_service import OllamaService
+from ..utils.chunking import chunk_text, TextChunk
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 # Serviços
 ollama_service = OllamaService()
 
+# Configurações de chunking
+CHUNK_SIZE = 1000  # caracteres por chunk
+CHUNK_OVERLAP = 200  # overlap entre chunks
+
 
 class DocumentUploadResponse(BaseModel):
     """Resposta do upload de documento"""
-    id: str
+    id: str  # ID principal (do primeiro chunk ou único)
+    chunk_ids: List[str]  # IDs de todos os chunks criados
+    total_chunks: int
     text_preview: str
     document_url: str
     document_name: str
@@ -80,6 +87,7 @@ async def upload_document(
                 detail="Não foi possível extrair texto do documento. O arquivo pode estar vazio ou corrompido."
             )
         
+
         # Gera nome único para o objeto no MinIO
         file_extension = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "bin"
         object_name = f"{uuid.uuid4()}-{file.filename}"
@@ -91,34 +99,50 @@ async def upload_document(
             file.content_type or "application/octet-stream"
         )
         
-        # Gera embedding do texto
-        embedding = ollama_service.generate_embedding(text)
-        
-        # Monta metadata com informações do documento
-        metadata = {
-            "source_type": "document",
-            "document_bucket": minio_service.bucket_name,
-            "document_key": object_name,
-            "document_name": file.filename,
-            "document_format": file_extension,
-            "uploaded_at": datetime.now(timezone.utc).isoformat(),
-            "total_pages": page_info.total_pages,
-            "is_multipage": page_info.is_multipage,
-            "page_range": page_info.page_range,
-        }
-        
-        # Armazena no banco de vetores
-        db_service = get_db_service(user=user, collection=collection, auto_create=True)
-        vector_id = db_service.add_vector(text, embedding, metadata)
+        # Divide o texto em chunks
+        chunks = chunk_text(text, chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
         
         # Gera URL de download (temporária - 1 hora)
         download_url = minio_service.get_presigned_url(object_name)
+        uploaded_at = datetime.now(timezone.utc).isoformat()
+        
+        # Armazena cada chunk como um vetor separado
+        db_service = get_db_service(user=user, collection=collection, auto_create=True)
+        chunk_ids = []
+        
+        for chunk in chunks:
+            # Gera embedding para este chunk
+            embedding = ollama_service.generate_embedding(chunk.text)
+            
+            # Monta metadata com informações do documento e chunk
+            metadata = {
+                "source_type": "document",
+                "document_bucket": minio_service.bucket_name,
+                "document_key": object_name,
+                "document_name": file.filename,
+                "document_format": file_extension,
+                "uploaded_at": uploaded_at,
+                "total_pages": page_info.total_pages,
+                "is_multipage": page_info.is_multipage,
+                "page_range": page_info.page_range,
+                # Informações de chunking
+                "chunk_index": chunk.chunk_index,
+                "total_chunks": chunk.total_chunks,
+                "chunk_start_char": chunk.start_char,
+                "chunk_end_char": chunk.end_char,
+            }
+            
+            # Armazena o chunk no banco de vetores
+            vector_id = db_service.add_vector(chunk.text, embedding, metadata)
+            chunk_ids.append(vector_id)
         
         # Retorna preview do texto (primeiros 500 caracteres)
         text_preview = text[:500] + "..." if len(text) > 500 else text
         
         return DocumentUploadResponse(
-            id=vector_id,
+            id=chunk_ids[0] if chunk_ids else "",
+            chunk_ids=chunk_ids,
+            total_chunks=len(chunks),
             text_preview=text_preview,
             document_url=download_url,
             document_name=file.filename,

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { uploadDocument, fetchCollections, CollectionInfo, DocumentUploadResult, ApiError } from '../services/api';
+import { uploadDocument, DocumentUploadResult, ApiError } from '../services/api';
 
 // Formatos suportados
 const SUPPORTED_FORMATS = [
@@ -23,7 +23,6 @@ interface UploadState {
 }
 
 const DocumentUploader: React.FC = () => {
-    const [collections, setCollections] = useState<CollectionInfo[]>([]);
     const [selectedCollection, setSelectedCollection] = useState<string>('');
     const [user, setUser] = useState<string>('');
     const [uploadState, setUploadState] = useState<UploadState>({
@@ -35,20 +34,6 @@ const DocumentUploader: React.FC = () => {
     });
     const [isDragOver, setIsDragOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    // Carrega coleções ao montar
-    React.useEffect(() => {
-        loadCollections();
-    }, []);
-
-    const loadCollections = async () => {
-        try {
-            const data = await fetchCollections();
-            setCollections(data);
-        } catch (error) {
-            console.error('Erro ao carregar coleções:', error);
-        }
-    };
 
     const getFileIcon = (filename: string): string => {
         const ext = filename.split('.').pop()?.toLowerCase() || '';
@@ -129,9 +114,6 @@ const DocumentUploader: React.FC = () => {
                 result,
                 progress: 100,
             }));
-
-            // Recarrega coleções caso uma nova tenha sido criada
-            loadCollections();
         } catch (error) {
             const apiError = error as ApiError;
             setUploadState(prev => ({
@@ -186,18 +168,13 @@ const DocumentUploader: React.FC = () => {
                     </div>
                     <div className="form-group">
                         <label className="form-label">Coleção</label>
-                        <select
-                            className="form-select"
+                        <input
+                            type="text"
+                            className="form-input"
+                            placeholder="Nome da coleção"
                             value={selectedCollection}
                             onChange={(e) => setSelectedCollection(e.target.value)}
-                        >
-                            <option value="">Selecione uma coleção</option>
-                            {collections.map((col) => (
-                                <option key={col.name} value={col.name}>
-                                    {col.name} ({col.vectors_count} vetores)
-                                </option>
-                            ))}
-                        </select>
+                        />
                     </div>
                 </div>
             </div>
@@ -301,6 +278,7 @@ const DocumentUploader: React.FC = () => {
                             <p><strong>Documento:</strong> {uploadState.result.document_name}</p>
                             <p><strong>Formato:</strong> {uploadState.result.document_format.toUpperCase()}</p>
                             <p><strong>Páginas:</strong> {uploadState.result.total_pages} {uploadState.result.is_multipage && '(múltiplas páginas)'}</p>
+                            <p><strong>Memórias criadas:</strong> {uploadState.result.total_chunks} {uploadState.result.total_chunks > 1 && '(texto dividido em chunks)'}</p>
                             <p style={{ marginTop: 'var(--spacing-sm)' }}><strong>Preview do texto:</strong></p>
                             <div style={{
                                 background: 'var(--color-bg-tertiary)',

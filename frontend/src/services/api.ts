@@ -268,6 +268,8 @@ export const deleteCollection = async (collectionName: string): Promise<{ messag
 
 export interface DocumentUploadResult {
     id: string;
+    chunk_ids: string[];  // IDs de todos os chunks criados
+    total_chunks: number;  // Total de chunks criados
     text_preview: string;
     document_url: string;
     document_name: string;

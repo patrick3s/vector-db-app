@@ -4,6 +4,12 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 import os
 import uuid
 import re
+import logging
+import traceback
+
+# Configura logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 class VectorDBService:
     def __init__(self, user: Optional[str] = None, collection: Optional[str] = None, auto_create: bool = False):
@@ -91,30 +97,45 @@ class VectorDBService:
     @staticmethod
     def list_all_collections() -> List[Dict]:
         """Lista todas as coleções disponíveis no Qdrant"""
-        qdrant_host = os.getenv("QDRANT_HOST", "localhost")
-        qdrant_port = int(os.getenv("QDRANT_PORT", "6333"))
-        
-        client = QdrantClient(host=qdrant_host, port=qdrant_port)
-        collections = client.get_collections().collections
-        
-        result = []
-        for col in collections:
-            try:
-                # Obtém informações da coleção
-                info = client.get_collection(col.name)
-                result.append({
-                    "name": col.name,
-                    "vectors_count": info.points_count,
-                    "status": str(info.status)
-                })
-            except Exception:
-                result.append({
-                    "name": col.name,
-                    "vectors_count": 0,
-                    "status": "unknown"
-                })
-        
-        return result
+        logger.info("=== list_all_collections: Iniciando ===")
+        try:
+            qdrant_host = os.getenv("QDRANT_HOST", "localhost")
+            qdrant_port = int(os.getenv("QDRANT_PORT", "6333"))
+            
+            logger.debug(f"Conectando ao Qdrant em {qdrant_host}:{qdrant_port}")
+            client = QdrantClient(host=qdrant_host, port=qdrant_port)
+            
+            logger.debug("Buscando lista de coleções...")
+            collections = client.get_collections().collections
+            logger.info(f"Encontradas {len(collections)} coleções")
+            
+            result = []
+            for col in collections:
+                logger.debug(f"Processando coleção: {col.name}")
+                try:
+                    # Obtém informações da coleção
+                    info = client.get_collection(col.name)
+                    result.append({
+                        "name": col.name,
+                        "vectors_count": info.points_count,
+                        "status": str(info.status)
+                    })
+                    logger.debug(f"Coleção {col.name}: {info.points_count} vetores, status: {info.status}")
+                except Exception as col_error:
+                    logger.warning(f"Erro ao obter info da coleção {col.name}: {col_error}")
+                    result.append({
+                        "name": col.name,
+                        "vectors_count": 0,
+                        "status": "unknown"
+                    })
+            
+            logger.info(f"=== list_all_collections: Retornando {len(result)} coleções ===")
+            return result
+        except Exception as e:
+            logger.error(f"=== list_all_collections: ERRO ===")
+            logger.error(f"Erro: {str(e)}")
+            logger.error(f"Traceback:\\n{traceback.format_exc()}")
+            raise
     
     def add_vector(self, text: str, vector: List[float], metadata: Optional[Dict] = None) -> str:
         """Adiciona um vetor à coleção"""

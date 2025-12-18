@@ -1,8 +1,14 @@
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
+import logging
+import traceback
 from ..services.vector_db_service import get_db_service, VectorDBService
 from ..services.ollama_service import OllamaService
+
+# Configura logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/vectors", tags=["vectors"])
 
@@ -27,10 +33,16 @@ class CreateCollectionInput(BaseModel):
 @router.get("/collections", response_model=List[Dict])
 async def list_collections():
     """Lista todas as coleções disponíveis no banco de vetores"""
+    logger.info("=== Iniciando list_collections ===")
     try:
+        logger.debug("Chamando VectorDBService.list_all_collections()")
         collections = VectorDBService.list_all_collections()
+        logger.info(f"Coleções encontradas: {len(collections)}")
+        logger.debug(f"Coleções: {collections}")
         return collections
     except Exception as e:
+        logger.error(f"Erro ao listar coleções: {str(e)}")
+        logger.error(f"Traceback completo:\n{traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
