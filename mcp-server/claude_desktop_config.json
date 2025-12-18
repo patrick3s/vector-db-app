@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "vector-db": {
+      "url": "http://localhost:8000/sse?user=patrick&collection=memorias"
+    }
+  }
+}

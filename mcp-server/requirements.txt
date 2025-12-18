@@ -1,0 +1,6 @@
+qdrant-client>=1.7.0
+ollama>=0.6.0
+fastmcp==2.13.0
+uvicorn>=0.30.0
+starlette>=0.38.0
+sse-starlette>=2.0.0
