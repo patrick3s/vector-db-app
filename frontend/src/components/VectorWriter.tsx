@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { saveVector, fetchCollections, createCollection, CollectionInfo } from '../services/api';
+import React, { useState } from 'react';
+import { saveVector } from '../services/api';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -109,54 +109,16 @@ const VectorWriter: React.FC = () => {
     const [text, setText] = useState('');
     const [metadataFields, setMetadataFields] = useState<{ key: string; value: string }[]>([]);
 
-    // Collection state
-    const [collections, setCollections] = useState<CollectionInfo[]>([]);
-    const [selectedCollection, setSelectedCollection] = useState('');
+    // Context state
+    const [collection, setCollection] = useState('');
     const [user, setUser] = useState('');
-    const [showNewCollection, setShowNewCollection] = useState(false);
-    const [newCollectionName, setNewCollectionName] = useState('');
 
     // UI state
     const [saving, setSaving] = useState(false);
-    const [loadingCollections, setLoadingCollections] = useState(true);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const [showPreview, setShowPreview] = useState(false);
-    const [creatingCollection, setCreatingCollection] = useState(false);
 
-    // Load collections on mount
-    useEffect(() => {
-        loadCollections();
-    }, []);
 
-    const loadCollections = async () => {
-        setLoadingCollections(true);
-        try {
-            const data = await fetchCollections();
-            setCollections(data);
-        } catch (err: any) {
-            console.error('Erro ao carregar coleções:', err);
-        } finally {
-            setLoadingCollections(false);
-        }
-    };
-
-    const handleCreateCollection = async () => {
-        if (!newCollectionName.trim()) return;
-
-        setCreatingCollection(true);
-        try {
-            await createCollection(newCollectionName);
-            await loadCollections();
-            setSelectedCollection(newCollectionName.toLowerCase().replace(/[^a-z0-9_-]/g, '_'));
-            setNewCollectionName('');
-            setShowNewCollection(false);
-            showMessageToast('success', 'Coleção criada com sucesso!');
-        } catch (err: any) {
-            showMessageToast('error', err.userMessage || err.message || 'Erro ao criar coleção');
-        } finally {
-            setCreatingCollection(false);
-        }
-    };
 
     const showMessageToast = (type: 'success' | 'error', text: string) => {
         setMessage({ type, text });
@@ -210,7 +172,7 @@ const VectorWriter: React.FC = () => {
                 text,
                 metadata,
                 user || undefined,
-                selectedCollection || undefined
+                collection || undefined
             );
 
             showMessageToast('success', '✨ Memória salva com sucesso!');
@@ -263,65 +225,6 @@ const VectorWriter: React.FC = () => {
 
                         <div className="context-selector">
                             <div className="context-field">
-                                <label>Coleção</label>
-                                {loadingCollections ? (
-                                    <div style={{ padding: '8px', color: 'var(--color-text-muted)' }}>
-                                        Carregando...
-                                    </div>
-                                ) : (
-                                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
-                                        <select
-                                            className="form-input"
-                                            value={selectedCollection}
-                                            onChange={(e) => setSelectedCollection(e.target.value)}
-                                            style={{ flex: 1 }}
-                                        >
-                                            <option value="">Selecione ou crie uma coleção</option>
-                                            {collections.map(col => (
-                                                <option key={col.name} value={col.name}>
-                                                    {col.name} ({col.vectors_count} memórias)
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <button
-                                            className="btn btn-secondary btn-sm"
-                                            onClick={() => setShowNewCollection(!showNewCollection)}
-                                            title="Nova coleção"
-                                        >
-                                            ➕
-                                        </button>
-                                    </div>
-                                )}
-
-                                {showNewCollection && (
-                                    <div style={{
-                                        marginTop: 'var(--spacing-sm)',
-                                        padding: 'var(--spacing-sm)',
-                                        background: 'var(--color-bg-tertiary)',
-                                        borderRadius: 'var(--radius-sm)',
-                                        display: 'flex',
-                                        gap: 'var(--spacing-sm)'
-                                    }}>
-                                        <input
-                                            type="text"
-                                            className="form-input"
-                                            value={newCollectionName}
-                                            onChange={(e) => setNewCollectionName(e.target.value)}
-                                            placeholder="Nome da nova coleção..."
-                                            style={{ flex: 1 }}
-                                        />
-                                        <button
-                                            className="btn btn-primary btn-sm"
-                                            onClick={handleCreateCollection}
-                                            disabled={creatingCollection || !newCollectionName.trim()}
-                                        >
-                                            {creatingCollection ? '...' : '✓'}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="context-field">
                                 <label>Usuário (opcional)</label>
                                 <input
                                     type="text"
@@ -329,6 +232,16 @@ const VectorWriter: React.FC = () => {
                                     value={user}
                                     onChange={(e) => setUser(e.target.value)}
                                     placeholder="Ex: patrick"
+                                />
+                            </div>
+                            <div className="context-field">
+                                <label>Coleção (opcional)</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    value={collection}
+                                    onChange={(e) => setCollection(e.target.value)}
+                                    placeholder="Ex: memorias"
                                 />
                             </div>
                         </div>
@@ -564,26 +477,14 @@ console.log('Hello World');
                     {/* Stats */}
                     <div className="card" style={{ background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1))' }}>
                         <h3 className="card-title" style={{ marginBottom: 'var(--spacing-md)' }}>
-                            📊 Resumo
+                            💡 Dica
                         </h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-md)' }}>
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-accent-primary)' }}>
-                                    {collections.length}
-                                </div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                                    Coleções
-                                </div>
-                            </div>
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-accent-secondary)' }}>
-                                    {collections.reduce((acc, c) => acc + c.vectors_count, 0)}
-                                </div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                                    Total de Memórias
-                                </div>
-                            </div>
-                        </div>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', lineHeight: '1.6' }}>
+                            Se a coleção não existir, ela será criada automaticamente ao salvar a primeira memória.
+                        </p>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', lineHeight: '1.6', marginTop: 'var(--spacing-sm)' }}>
+                            Use templates para criar conteúdo estruturado rapidamente!
+                        </p>
                     </div>
                 </div>
             </div>

@@ -22,7 +22,7 @@ class VectorDBService:
         
         # Só cria automaticamente se explicitamente solicitado
         if auto_create:
-            self._ensure_collection()
+            self.ensure_collection()
     
     def _sanitize_name(self, name: str) -> str:
         """Remove caracteres especiais e espaços do nome"""
@@ -40,7 +40,7 @@ class VectorDBService:
         
         return base_collection
     
-    def _ensure_collection(self):
+    def ensure_collection(self):
         """Garante que a coleção existe"""
         collections = self.client.get_collections().collections
         if not any(col.name == self.collection_name for col in collections):
@@ -240,7 +240,13 @@ def get_db_service(user: Optional[str] = None, collection: Optional[str] = None,
     if cache_key not in _db_services:
         _db_services[cache_key] = VectorDBService(user=user, collection=collection, auto_create=auto_create)
     
-    return _db_services[cache_key]
+    service = _db_services[cache_key]
+    
+    # Se auto_create for solicitado, garante que a coleção existe mesmo se o serviço veio do cache
+    if auto_create:
+        service.ensure_collection()
+        
+    return service
 
 def read_vector_data() -> List[Dict]:
     """Lê todos os vetores armazenados"""

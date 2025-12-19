@@ -69,101 +69,14 @@ def get_ollama_service() -> OllamaService:
 
 
 @mcp.tool()
-def set_context(user: Optional[str] = None, collection: Optional[str] = None) -> str:
+def add_vector(text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
     """
-    Define o contexto de usuário e coleção para as próximas operações.
-    Use esta ferramenta uma vez no início para configurar seu contexto.
-    
-    Args:
-        user: Nome do usuário (será usado em todas as operações seguintes)
-        collection: Nome da coleção base (será usado em todas as operações seguintes)
-    
-    Returns:
-        JSON com o contexto atual
-    """
-    try:
-        logger.info(f"Executando ferramenta: set_context (user={user}, collection={collection})")
-        
-        if user is not None:
-            _session_context["user"] = user
-        if collection is not None:
-            _session_context["collection"] = collection
-        
-        # Mostra como ficará o nome da coleção
-        effective_user = get_effective_user()
-        effective_collection = get_effective_collection()
-        db = get_db_service(user=effective_user, collection=effective_collection)
-        
-        return json.dumps({
-            "success": True,
-            "message": "Contexto atualizado com sucesso",
-            "context": {
-                "user": _session_context.get("user"),
-                "collection": _session_context.get("collection")
-            },
-            "effective_collection_name": db.collection_name
-        }, indent=2)
-    
-    except Exception as e:
-        logger.error(f"Erro ao definir contexto: {e}", exc_info=True)
-        return json.dumps({
-            "success": False,
-            "error": str(e)
-        }, indent=2)
-
-
-@mcp.tool()
-def get_context() -> str:
-    """
-    Retorna o contexto atual de usuário e coleção.
-    
-    Returns:
-        JSON com o contexto atual
-    """
-    try:
-        logger.info(f"Executando ferramenta: get_context")
-        
-        effective_user = get_effective_user()
-        effective_collection = get_effective_collection()
-        
-        # Mostra como ficará o nome da coleção
-        if effective_user or effective_collection:
-            db = get_db_service(user=effective_user, collection=effective_collection)
-            collection_name = db.collection_name
-        else:
-            collection_name = "vectors"
-        
-        return json.dumps({
-            "success": True,
-            "context": {
-                "user": _session_context.get("user"),
-                "collection": _session_context.get("collection")
-            },
-            "effective": {
-                "user": effective_user,
-                "collection": effective_collection
-            },
-            "effective_collection_name": collection_name
-        }, indent=2)
-    
-    except Exception as e:
-        logger.error(f"Erro ao obter contexto: {e}", exc_info=True)
-        return json.dumps({
-            "success": False,
-            "error": str(e)
-        }, indent=2)
-
-
-@mcp.tool()
-def add_vector(text: str, metadata: Optional[Dict[str, Any]] = None, user: Optional[str] = None, collection: Optional[str] = None) -> str:
-    """
-    Adiciona um novo texto ao banco de vetores(memoria). O embedding é gerado automaticamente.
+    Adiciona um novo texto ao banco de vetores (memoria). O embedding é gerado automaticamente.
+    Usa o contexto de user/collection definido na URL de conexão.
     
     Args:
         text: O texto a ser armazenado
         metadata: Metadados opcionais
-        user: Nome do usuário (opcional) - usado para criar coleção específica
-        collection: Nome da coleção (opcional) - padrão é "vectors"
     
     Returns:
         JSON com resultado da operação
@@ -171,16 +84,17 @@ def add_vector(text: str, metadata: Optional[Dict[str, Any]] = None, user: Optio
     try:
         logger.info(f"Executando ferramenta: add_vector")
         
-        # Usa contexto de sessão se não especificado
-        effective_user = get_effective_user(user)
-        effective_collection = get_effective_collection(collection)
+        # Usa apenas o contexto de sessão (URL params)
+        effective_user = get_effective_user()
+        effective_collection = get_effective_collection()
         
         if metadata is None:
             metadata = {}
         
         ollama = get_ollama_service()
         embedding = ollama.generate_embedding(text)
-        db = get_db_service(user=effective_user, collection=effective_collection)
+        # Ao adicionar vetor, garante que a coleção exista (auto_create=True)
+        db = get_db_service(user=effective_user, collection=effective_collection, auto_create=True)
         vector_id = db.add_vector(text=text, vector=embedding, metadata=metadata)
         
         return json.dumps({
@@ -200,15 +114,14 @@ def add_vector(text: str, metadata: Optional[Dict[str, Any]] = None, user: Optio
 
 
 @mcp.tool()
-def search_vectors(text: str, limit: int = 5, user: Optional[str] = None, collection: Optional[str] = None) -> str:
+def search_vectors(text: str, limit: int = 5) -> str:
     """
-    Busca vetores (memoria) similares usando busca semântica
+    Busca vetores (memoria) similares usando busca semântica.
+    Usa o contexto de user/collection definido na URL de conexão.
     
     Args:
         text: Texto de consulta
         limit: Número máximo de resultados (default: 5)
-        user: Nome do usuário (opcional) - usado para buscar na coleção específica
-        collection: Nome da coleção (opcional) - padrão é "vectors"
     
     Returns:
         JSON com resultados da busca
@@ -216,13 +129,13 @@ def search_vectors(text: str, limit: int = 5, user: Optional[str] = None, collec
     try:
         logger.info(f"Executando ferramenta: search_vectors")
         
-        # Usa contexto de sessão se não especificado
-        effective_user = get_effective_user(user)
-        effective_collection = get_effective_collection(collection)
+        # Usa apenas o contexto de sessão (URL params)
+        effective_user = get_effective_user()
+        effective_collection = get_effective_collection()
         
         ollama = get_ollama_service()
         query_embedding = ollama.generate_embedding(text)
-        db = get_db_service(user=effective_user, collection=effective_collection)
+        db = get_db_service(user=effective_user, collection=effective_collection, auto_create=True)
         results = db.search_similar(query_embedding, limit=limit)
         
         return json.dumps({
@@ -242,13 +155,10 @@ def search_vectors(text: str, limit: int = 5, user: Optional[str] = None, collec
 
 
 @mcp.tool()
-def list_all_vectors(user: Optional[str] = None, collection: Optional[str] = None) -> str:
+def list_all_vectors() -> str:
     """
-    Lista todos os vetores armazenados (memoria)
-    
-    Args:
-        user: Nome do usuário (opcional) - usado para listar da coleção específica
-        collection: Nome da coleção (opcional) - padrão é "vectors"
+    Lista todos os vetores armazenados (memoria).
+    Usa o contexto de user/collection definido na URL de conexão.
     
     Returns:
         JSON com todos os vetores
@@ -256,11 +166,11 @@ def list_all_vectors(user: Optional[str] = None, collection: Optional[str] = Non
     try:
         logger.info(f"Executando ferramenta: list_all_vectors")
         
-        # Usa contexto de sessão se não especificado
-        effective_user = get_effective_user(user)
-        effective_collection = get_effective_collection(collection)
+        # Usa apenas o contexto de sessão (URL params)
+        effective_user = get_effective_user()
+        effective_collection = get_effective_collection()
         
-        db = get_db_service(user=effective_user, collection=effective_collection)
+        db = get_db_service(user=effective_user, collection=effective_collection, auto_create=True)
         vectors = db.get_all_vectors()
         
         return json.dumps({
@@ -279,14 +189,13 @@ def list_all_vectors(user: Optional[str] = None, collection: Optional[str] = Non
 
 
 @mcp.tool()
-def delete_vector(vector_id: str, user: Optional[str] = None, collection: Optional[str] = None) -> str:
+def delete_vector(vector_id: str) -> str:
     """
-    Remove um vetor pelo ID (memoria)
+    Remove um vetor pelo ID (memoria).
+    Usa o contexto de user/collection definido na URL de conexão.
     
     Args:
         vector_id: ID do vetor a ser removido
-        user: Nome do usuário (opcional) - usado para deletar da coleção específica
-        collection: Nome da coleção (opcional) - padrão é "vectors"
     
     Returns:
         JSON com resultado da operação
@@ -294,11 +203,11 @@ def delete_vector(vector_id: str, user: Optional[str] = None, collection: Option
     try:
         logger.info(f"Executando ferramenta: delete_vector")
         
-        # Usa contexto de sessão se não especificado
-        effective_user = get_effective_user(user)
-        effective_collection = get_effective_collection(collection)
+        # Usa apenas o contexto de sessão (URL params)
+        effective_user = get_effective_user()
+        effective_collection = get_effective_collection()
         
-        db = get_db_service(user=effective_user, collection=effective_collection)
+        db = get_db_service(user=effective_user, collection=effective_collection, auto_create=True)
         success = db.delete_vector(vector_id)
         
         return json.dumps({

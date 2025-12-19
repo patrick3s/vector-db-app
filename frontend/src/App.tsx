@@ -36,6 +36,89 @@ const Navigation: React.FC = () => {
   );
 };
 
+// API Endpoint Example Card Component
+interface ApiEndpointProps {
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  endpoint: string;
+  description: string;
+  requestExample?: string;
+  responseExample?: string;
+}
+
+const ApiEndpointCard: React.FC<ApiEndpointProps> = ({ method, endpoint, description, requestExample, responseExample }) => {
+  const [expanded, setExpanded] = React.useState(false);
+
+  const methodColors: Record<string, string> = {
+    GET: 'var(--color-success)',
+    POST: 'var(--color-info)',
+    PUT: 'var(--color-warning)',
+    DELETE: 'var(--color-error)'
+  };
+
+  return (
+    <div style={{
+      padding: 'var(--spacing-sm)',
+      background: 'var(--color-bg-tertiary)',
+      borderRadius: 'var(--radius-sm)',
+      cursor: requestExample || responseExample ? 'pointer' : 'default'
+    }}
+      onClick={() => (requestExample || responseExample) && setExpanded(!expanded)}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <code style={{ color: methodColors[method], fontWeight: 'bold' }}>{method}</code>
+          <code style={{ marginLeft: 'var(--spacing-sm)', color: 'var(--color-text-secondary)' }}>{endpoint}</code>
+          <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: 'var(--spacing-xs)', marginBottom: 0 }}>{description}</p>
+        </div>
+        {(requestExample || responseExample) && (
+          <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
+            {expanded ? '▼' : '▶'}
+          </span>
+        )}
+      </div>
+
+      {expanded && (requestExample || responseExample) && (
+        <div style={{ marginTop: 'var(--spacing-md)', borderTop: '1px solid var(--color-border)', paddingTop: 'var(--spacing-sm)' }}>
+          {requestExample && (
+            <div style={{ marginBottom: 'var(--spacing-md)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px', fontWeight: 'bold' }}>
+                📤 Requisição:
+              </div>
+              <pre style={{
+                background: 'var(--color-bg-primary)',
+                padding: 'var(--spacing-sm)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.75rem',
+                overflow: 'auto',
+                margin: 0
+              }}>
+                <code>{requestExample}</code>
+              </pre>
+            </div>
+          )}
+          {responseExample && (
+            <div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px', fontWeight: 'bold' }}>
+                📥 Resposta:
+              </div>
+              <pre style={{
+                background: 'var(--color-bg-primary)',
+                padding: 'var(--spacing-sm)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.75rem',
+                overflow: 'auto',
+                margin: 0
+              }}>
+                <code>{responseExample}</code>
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Home: React.FC = () => {
   return (
     <div className="app-container">
@@ -64,45 +147,187 @@ const Home: React.FC = () => {
         </Link>
       </div>
 
-      <div className="card" style={{ marginTop: 'var(--spacing-xl)', textAlign: 'center' }}>
-        <h3 className="card-title">📡 API Endpoints</h3>
+      <div className="card" style={{ marginTop: 'var(--spacing-xl)' }}>
+        <h3 className="card-title" style={{ textAlign: 'center' }}>📡 API Endpoints</h3>
+        <p style={{ textAlign: 'center', fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-md)' }}>
+          Clique em um endpoint para ver exemplos de requisição e resposta
+        </p>
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
           gap: 'var(--spacing-md)',
-          marginTop: 'var(--spacing-md)',
           textAlign: 'left'
         }}>
-          <div style={{ padding: 'var(--spacing-sm)', background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
-            <code style={{ color: 'var(--color-success)' }}>GET</code>
-            <code style={{ marginLeft: 'var(--spacing-sm)', color: 'var(--color-text-secondary)' }}>/vectors</code>
-            <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: 'var(--spacing-xs)' }}>Listar memórias</p>
-          </div>
-          <div style={{ padding: 'var(--spacing-sm)', background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
-            <code style={{ color: 'var(--color-info)' }}>POST</code>
-            <code style={{ marginLeft: 'var(--spacing-sm)', color: 'var(--color-text-secondary)' }}>/vectors</code>
-            <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: 'var(--spacing-xs)' }}>Adicionar memória</p>
-          </div>
-          <div style={{ padding: 'var(--spacing-sm)', background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
-            <code style={{ color: 'var(--color-warning)' }}>PUT</code>
-            <code style={{ marginLeft: 'var(--spacing-sm)', color: 'var(--color-text-secondary)' }}>/vectors/:id</code>
-            <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: 'var(--spacing-xs)' }}>Editar memória</p>
-          </div>
-          <div style={{ padding: 'var(--spacing-sm)', background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
-            <code style={{ color: 'var(--color-error)' }}>DELETE</code>
-            <code style={{ marginLeft: 'var(--spacing-sm)', color: 'var(--color-text-secondary)' }}>/vectors/:id</code>
-            <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: 'var(--spacing-xs)' }}>Excluir memória</p>
-          </div>
-          <div style={{ padding: 'var(--spacing-sm)', background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
-            <code style={{ color: 'var(--color-info)' }}>POST</code>
-            <code style={{ marginLeft: 'var(--spacing-sm)', color: 'var(--color-text-secondary)' }}>/vectors/search</code>
-            <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: 'var(--spacing-xs)' }}>Busca semântica</p>
-          </div>
-          <div style={{ padding: 'var(--spacing-sm)', background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
-            <code style={{ color: 'var(--color-success)' }}>GET</code>
-            <code style={{ marginLeft: 'var(--spacing-sm)', color: 'var(--color-text-secondary)' }}>/vectors/context</code>
-            <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: 'var(--spacing-xs)' }}>Info da coleção</p>
-          </div>
+          <ApiEndpointCard
+            method="POST"
+            endpoint="/vectors"
+            description="Adicionar memória"
+            requestExample={`POST http://localhost:9000/vectors
+Content-Type: application/json
+
+{
+  "text": "React é uma biblioteca JavaScript",
+  "metadata": {
+    "type": "note",
+    "language": "javascript"
+  },
+  "user": "patrick",
+  "collection": "memorias"
+}`}
+            responseExample={`{
+  "id": "abc123def456",
+  "text": "React é uma biblioteca JavaScript",
+  "metadata": {
+    "type": "note",
+    "language": "javascript"
+  },
+  "user": "patrick",
+  "collection": "memorias"
+}`}
+          />
+
+          <ApiEndpointCard
+            method="POST"
+            endpoint="/vectors/search"
+            description="Busca semântica"
+            requestExample={`POST http://localhost:9000/vectors/search
+Content-Type: application/json
+
+{
+  "query": "biblioteca para interfaces",
+  "limit": 5,
+  "user": "patrick",
+  "collection": "memorias"
+}`}
+            responseExample={`[
+  {
+    "id": "abc123def456",
+    "text": "React é uma biblioteca JavaScript",
+    "score": 0.92,
+    "metadata": {
+      "type": "note",
+      "language": "javascript"
+    }
+  },
+  {
+    "id": "xyz789ghi012",
+    "text": "Vue.js é um framework progressivo",
+    "score": 0.85,
+    "metadata": {...}
+  }
+]`}
+          />
+
+          <ApiEndpointCard
+            method="GET"
+            endpoint="/vectors"
+            description="Listar memórias"
+            requestExample={`GET http://localhost:9000/vectors?user=patrick&collection=memorias&limit=10`}
+            responseExample={`[
+  {
+    "id": "abc123def456",
+    "text": "React é uma biblioteca JavaScript",
+    "metadata": {
+      "type": "note",
+      "language": "javascript"
+    }
+  },
+  {
+    "id": "xyz789ghi012",
+    "text": "Vue.js é um framework progressivo",
+    "metadata": {...}
+  }
+]`}
+          />
+
+          <ApiEndpointCard
+            method="GET"
+            endpoint="/collections"
+            description="Listar coleções"
+            requestExample={`GET http://localhost:9000/collections`}
+            responseExample={`[
+  {
+    "name": "memorias",
+    "vectors_count": 42,
+    "status": "CollectionStatus.GREEN"
+  },
+  {
+    "name": "notas_flutter",
+    "vectors_count": 15,
+    "status": "CollectionStatus.GREEN"
+  }
+]`}
+          />
+
+          <ApiEndpointCard
+            method="PUT"
+            endpoint="/vectors/:id"
+            description="Editar memória"
+            requestExample={`PUT http://localhost:9000/vectors/abc123def456
+Content-Type: application/json
+
+{
+  "text": "React é uma biblioteca para UI",
+  "metadata": {
+    "type": "note",
+    "language": "javascript",
+    "updated": true
+  }
+}`}
+            responseExample={`{
+  "id": "abc123def456",
+  "text": "React é uma biblioteca para UI",
+  "metadata": {
+    "type": "note",
+    "language": "javascript",
+    "updated": true
+  }
+}`}
+          />
+
+          <ApiEndpointCard
+            method="DELETE"
+            endpoint="/vectors/:id"
+            description="Excluir memória"
+            requestExample={`DELETE http://localhost:9000/vectors/abc123def456?user=patrick&collection=memorias`}
+            responseExample={`{
+  "message": "Memory deleted successfully",
+  "deleted_id": "abc123def456"
+}`}
+          />
+
+          <ApiEndpointCard
+            method="POST"
+            endpoint="/documents/upload"
+            description="Upload de documentos"
+            requestExample={`POST http://localhost:9000/documents/upload
+Content-Type: multipart/form-data
+
+file: [arquivo.pdf]
+user: patrick (opcional)
+collection: documentos (opcional)`}
+            responseExample={`{
+  "message": "Document processed",
+  "document_name": "arquivo.pdf",
+  "vectors_created": 5,
+  "collection": "documentos"
+}`}
+          />
+
+          <ApiEndpointCard
+            method="GET"
+            endpoint="/collections/:name"
+            description="Info da coleção"
+            requestExample={`GET http://localhost:9000/collections/memorias`}
+            responseExample={`{
+  "name": "memorias",
+  "vectors_count": 42,
+  "status": "CollectionStatus.GREEN",
+  "config": {
+    "params": {...}
+  }
+}`}
+          />
         </div>
       </div>
     </div>
