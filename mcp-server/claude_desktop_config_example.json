@@ -1,0 +1,18 @@
+{
+    "mcpServers": {
+        "vector-db-memory": {
+            "type": "sse",
+            "url": "http://localhost:8000/sse?user=patrick&collection=memories",
+            "description": "Advanced Memory System with Vector DB and LLM-powered tools",
+            "customInstructions": "You have access to an advanced Memory & Screen Generation MCP server.\n\n🧠 CORE BEHAVIOR: Be proactive! Automatically detect and store valuable information.\n\n📝 AUTO-STORE these immediately:\n- Preferences: \"I prefer...\", \"I like...\", \"I always...\"\n- Decisions: \"Let's use...\", \"We decided...\", \"Going with...\"\n- Tasks: \"I need to...\", \"TODO...\", \"Remember to...\"\n- Facts: \"The API uses...\", \"Port is...\", \"Database is...\"\n\n❌ DON'T STORE: Greetings, questions, small talk\n\n🔍 SEARCH WORKFLOW (use full pipeline!):\n1. memory_rewrite_query - Expand query variants\n2. memory_search - Search with filters + TTL\n3. memory_rerank - LLM relevance ranking\n4. memory_pack - Format with citations\n5. Answer citing sources: \"Based on [mem:abc123]...\"\n\n🎨 SCREEN GENERATION:\n- ALWAYS use generate_screen_prompt for UIs\n- ALWAYS set include_user_memories=true\n- Use the returned full_prompt to generate code\n\n✅ QUALITY CHECKS before responding:\n- Stored preferences/decisions mentioned?\n- Used memory pipeline for past context questions?\n- Cited memories (mem:id format)?\n- Used generate_screen_prompt with memories for UIs?\n- Used correct user_id?\n\n💡 The system gets smarter with every stored memory. Store proactively!",
+            "autoApprove": [
+                "memory_search",
+                "memory_rewrite_query",
+                "memory_rerank",
+                "memory_pack",
+                "search_vectors",
+                "list_all_vectors"
+            ]
+        }
+    }
+}

@@ -52,11 +52,11 @@ _session_context: Dict[str, Optional[str]] = {
 
 def get_effective_user(user: Optional[str] = None) -> Optional[str]:
     """Retorna o usuário efetivo: parâmetro > contexto de sessão > padrão do ambiente"""
-    return user or _session_context.get("user") or DEFAULT_USER
+    return _session_context.get("user") or DEFAULT_USER
 
 def get_effective_collection(collection: Optional[str] = None) -> Optional[str]:
     """Retorna a coleção efetiva: parâmetro > contexto de sessão > padrão do ambiente"""
-    return collection or _session_context.get("collection") or DEFAULT_COLLECTION
+    return _session_context.get("collection") or DEFAULT_COLLECTION
 
 # Inicializa o servidor FastMCP com configuração HTTP
 mcp = FastMCP(
@@ -242,10 +242,10 @@ def delete_vector(vector_id: str) -> str:
 
 @mcp.tool()
 def memory_store_candidate(
-    user_id: str,
     session_id: str,
     text: str,
     source: str,
+    user_id: Optional[str] = None,
     timestamp: Optional[str] = None
 ) -> str:
     """
@@ -259,10 +259,10 @@ def memory_store_candidate(
     - ✂️ Dividir textos longos em chunks com overlap
     
     Args:
-        user_id: Identificador do usuário (ex: "patrick", "user123")
         session_id: ID da sessão/conversa atual
         text: Texto candidato a ser armazenado como memória
         source: Origem da memória (ex: "chat", "email", "note", "api")
+        user_id: Identificador do usuário (opcional, usa contexto DEFAULT_USER se não fornecido)
         timestamp: Timestamp ISO 8601 (opcional, usa UTC atual se não informado)
     
     Returns:
@@ -270,6 +270,10 @@ def memory_store_candidate(
     """
     try:
         logger.info("Executing tool: memory_store_candidate")
+        
+        # Usa contexto de sessão (URL params) ou DEFAULT_USER
+        effective_user = get_effective_user(user_id)
+        effective_collection = get_effective_collection()
         
         if timestamp is None:
             timestamp = datetime.utcnow().isoformat()
@@ -320,10 +324,10 @@ Respond with this exact JSON structure:
             }, indent=2)
         
         # Generate dedupe key
-        dedupe_key = mh.generate_dedupe_key(text, user_id)
+        dedupe_key = mh.generate_dedupe_key(text, effective_user)
         
         # Check for existing memories with same dedupe_key
-        db = get_db_service(user=user_id, collection="memories", auto_create=True)
+        db = get_db_service(user=effective_user, collection=effective_collection, auto_create=True)
         
         # Search for existing memories with this dedupe_key
         try:
@@ -331,7 +335,7 @@ Respond with this exact JSON structure:
                 collection_name=db.collection_name,
                 scroll_filter=Filter(
                     must=[
-                        {"key": "user_id", "match": {"value": user_id}},
+                        {"key": "user_id", "match": {"value": effective_user}},
                         {"key": "dedupe_key", "match": {"value": dedupe_key}}
                     ]
                 ),
@@ -368,7 +372,7 @@ Respond with this exact JSON structure:
             
             payload = {
                 "text": chunk,
-                "user_id": user_id,
+                "user_id": effective_user,
                 "type": classification.get("type", "note"),
                 "importance": classification.get("importance", 1),
                 "ttl_days": classification.get("ttl_days", 0),
@@ -416,8 +420,8 @@ Respond with this exact JSON structure:
 
 @mcp.tool()
 def memory_rewrite_query(
-    user_id: str,
     query: str,
+    user_id: Optional[str] = None,
     context_hint: Optional[str] = None,
     k: int = 5
 ) -> str:
@@ -434,8 +438,8 @@ def memory_rewrite_query(
       • "importante/critical" → filtro min_importance
     
     Args:
-        user_id: Identificador do usuário para contexto
         query: Query original em linguagem natural
+        user_id: Identificador do usuário para contexto (opcional, usa contexto DEFAULT_USER se não fornecido)
         context_hint: Dica de contexto opcional (ex: "buscando configurações UI")
         k: Número alvo de resultados (influencia estratégia de reescrita)
     
@@ -444,6 +448,9 @@ def memory_rewrite_query(
     """
     try:
         logger.info("Executing tool: memory_rewrite_query")
+        
+        # Usa contexto de sessão (URL params) ou DEFAULT_USER
+        effective_user = get_effective_user(user_id)
         
         ollama = get_ollama_service()
         
@@ -506,8 +513,8 @@ Respond with this exact JSON structure:
 
 @mcp.tool()
 def memory_search(
-    user_id: str,
     query: str,
+    user_id: Optional[str] = None,
     filters: Optional[Dict] = None,
     k: int = 5
 ) -> str:
@@ -522,8 +529,8 @@ def memory_search(
     - 📊 Retorna top-k ordenados por score de similaridade
     
     Args:
-        user_id: Identificador do usuário
         query: Query de busca em linguagem natural
+        user_id: Identificador do usuário (opcional, usa contexto DEFAULT_USER se não fornecido)
         filters: Filtros opcionais (dict):
           - tags_any: list[str] - match qualquer tag
           - type_any: list[str] - match qualquer tipo
@@ -537,20 +544,24 @@ def memory_search(
     try:
         logger.info("Executing tool: memory_search")
         
+        # Usa contexto de sessão (URL params) ou DEFAULT_USER
+        effective_user = get_effective_user(user_id)
+        effective_collection = get_effective_collection()
+        
         ollama = get_ollama_service()
-        db = get_db_service(user=user_id, collection="memories", auto_create=True)
+        db = get_db_service(user=effective_user, collection=effective_collection, auto_create=True)
         
         # If no filters, use rewrite_query to get them
         rewritten_queries = [query]
         if not filters:
-            rewrite_result = memory_rewrite_query(user_id, query, k=k)
+            rewrite_result = memory_rewrite_query(query, user_id=effective_user, k=k)
             rewrite_data = json.loads(rewrite_result)
             if rewrite_data.get("success"):
                 rewritten_queries = rewrite_data.get("rewritten_queries", [query])
                 filters = rewrite_data.get("filters", {})
         
         # Build Qdrant filter
-        qdrant_filter = mh.build_qdrant_filter(user_id, filters)
+        qdrant_filter = mh.build_qdrant_filter(effective_user, filters)
         
         # Search with each rewritten query
         all_results = []
@@ -774,6 +785,163 @@ def memory_pack(
             "memory_context": [],
             "citations": [],
             "gaps": ["Error packing memories"]
+        }, indent=2)
+
+
+@mcp.tool()
+def generate_screen_prompt(
+    screen_description: str,
+    user_id: Optional[str] = None,
+    tech_stack: Optional[str] = None,
+    style_preferences: Optional[str] = None,
+    include_user_memories: bool = True
+) -> str:
+    """
+    🎨 Screen Prompt Generator: Cria prompts inteligentes otimizados para geração de telas/interfaces.
+    
+    Gera prompts detalhados e estruturados para criar interfaces usando:
+    - 🧠 Memórias e preferências do usuário (UI/UX, cores, estilos)
+    - 🎯 Contexto técnico (stack, frameworks, bibliotecas)
+    - 🎨 Padrões de design e best practices
+    - 📋 Estrutura clara com seções (Layout, Componentes, Estilo, Interações)
+    
+    O prompt gerado pode ser usado com LLMs para criar código de telas completas.
+    
+    Args:
+        screen_description: Descrição da tela desejada (ex: "tela de login moderna com dark mode")
+        user_id: Identificador do usuário (opcional, usa contexto DEFAULT_USER se não fornecido)
+        tech_stack: Stack técnico opcional (ex: "React + TypeScript + TailwindCSS", "Vue 3 + Vuetify")
+        style_preferences: Preferências de estilo opcionais (ex: "minimalista", "glassmorphism", "neomorphism")
+        include_user_memories: Se deve incluir memórias/preferências do usuário (padrão: True)
+    
+    Returns:
+        JSON com prompt otimizado e metadados
+    """
+    try:
+        logger.info("Executing tool: generate_screen_prompt")
+        
+        # Usa contexto de sessão (URL params) ou DEFAULT_USER
+        effective_user = get_effective_user(user_id)
+        
+        ollama = get_ollama_service()
+        user_preferences = ""
+        
+        # Busca preferências do usuário na memória
+        if include_user_memories:
+            try:
+                search_result = memory_search(
+                    query="preferências de UI, UX, design, cores, estilos de interface",
+                    user_id=effective_user,
+                    filters={"type_any": ["preference"], "min_importance": 1},
+                    k=5
+                )
+                search_data = json.loads(search_result)
+                
+                if search_data.get("success") and search_data.get("candidates"):
+                    prefs = []
+                    for candidate in search_data["candidates"]:
+                        prefs.append(f"- {candidate['text']}")
+                    user_preferences = "\n".join(prefs)
+                    logger.info(f"Found {len(prefs)} user preferences")
+            except Exception as e:
+                logger.warning(f"Could not fetch user preferences: {e}")
+                user_preferences = ""
+        
+        # Monta prompt para o LLM gerar o prompt final
+        llm_prompt = f"""Você é um especialista em UX/UI e geração de prompts para criar interfaces.
+
+TAREFA: Criar um prompt DETALHADO e ESTRUTURADO para gerar o código de uma tela/interface.
+
+DESCRIÇÃO DA TELA:
+{screen_description}
+
+{f'''STACK TÉCNICO:
+{tech_stack}''' if tech_stack else ''}
+
+{f'''PREFERÊNCIAS DE ESTILO:
+{style_preferences}''' if style_preferences else ''}
+
+{f'''PREFERÊNCIAS DO USUÁRIO (de memórias anteriores):
+{user_preferences}''' if user_preferences else ''}
+
+INSTRUÇÕES:
+Crie um prompt completo e detalhado seguindo esta estrutura em JSON:
+
+{{
+  "prompt_title": "título curto e descritivo",
+  "main_prompt": "prompt principal detalhado (2-4 parágrafos) explicando a tela, seu propósito, funcionalidades principais",
+  "tech_requirements": {{
+    "frameworks": ["framework1", "framework2"],
+    "libraries": ["lib1", "lib2"],
+    "styling": "método de estilização (CSS, TailwindCSS, Styled Components, etc)"
+  }},
+  "design_guidelines": [
+    "guideline 1 (ex: usar esquema de cores dark mode)",
+    "guideline 2 (ex: layout responsivo mobile-first)",
+    "guideline 3 (ex: animações suaves e microinterações)"
+  ],
+  "components_needed": [
+    {{"name": "ComponentName", "description": "o que este componente faz"}},
+  ],
+  "layout_structure": "descrição da estrutura/hierarquia dos componentes",
+  "interactions": [
+    "interação 1 (ex: validação em tempo real no formulário)",
+    "interação 2 (ex: feedback visual ao submeter)"
+  ],
+  "accessibility": [
+    "requisito 1 (ex: suporte a leitores de tela)",
+    "requisito 2 (ex: navegação por teclado)"
+  ],
+  "full_prompt": "O PROMPT COMPLETO FINAL formatado e pronto para ser usado diretamente com LLM para gerar código"
+}}
+
+IMPORTANTE:
+- Seja ESPECÍFICO e DETALHADO
+- Inclua cores, tipografia, espaçamentos se relevante
+- Mencione estados (hover, active, disabled, loading)
+- Sugira componentes reutilizáveis
+- Considere responsividade
+- O campo "full_prompt" deve ser o prompt final completo e pronto para uso
+- Use as preferências do usuário quando disponíveis
+"""
+
+        messages = [
+            {"role": "system", "content": "Você é um especialista em UX/UI e geração de prompts detalhados. Responda APENAS com JSON válido."},
+            {"role": "user", "content": llm_prompt}
+        ]
+        
+        result = mh.chat_json(messages, ollama, model=OLLAMA_CHAT_MODEL)
+        
+        if not result:
+            # Fallback: prompt básico
+            fallback_prompt = f"""Crie uma tela/interface: {screen_description}
+
+{f'Stack técnico: {tech_stack}' if tech_stack else ''}
+{f'Estilo: {style_preferences}' if style_preferences else ''}
+
+A interface deve ser moderna, responsiva e seguir as melhores práticas de UX/UI.
+Inclua componentes bem estruturados, tratamento de estados e acessibilidade."""
+            
+            return json.dumps({
+                "success": True,
+                "prompt": fallback_prompt,
+                "fallback": True,
+                "user_preferences_used": bool(user_preferences)
+            }, indent=2)
+        
+        # Adiciona metadados
+        result["success"] = True
+        result["user_preferences_used"] = bool(user_preferences)
+        result["preferences_count"] = len(user_preferences.split("\n")) if user_preferences else 0
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+    
+    except Exception as e:
+        logger.error(f"Error in generate_screen_prompt: {e}", exc_info=True)
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "prompt": f"Crie uma tela: {screen_description}"
         }, indent=2)
 
 
