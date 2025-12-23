@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-MCP Server para Vector Database usando FastMCP com suporte HTTP/SSE
-Expõe ferramentas para gerenciar vetores e fazer buscas semânticas
-Acesse via: http://localhost:8000/sse?user=patrick&collection=memorias
-"""
 
 import json
 import sys
@@ -418,6 +412,68 @@ Respond with this exact JSON structure:
         }, indent=2)
 
 
+def _do_rewrite_query(
+    query: str,
+    user_id: Optional[str] = None,
+    context_hint: Optional[str] = None,
+    k: int = 5
+) -> dict:
+    """
+    Internal helper function for query rewriting logic.
+    Returns a dict with rewritten_queries and filters.
+    """
+    # Usa contexto de sessão (URL params) ou DEFAULT_USER
+    effective_user = get_effective_user(user_id)
+    
+    ollama = get_ollama_service()
+    
+    prompt = f"""Rewrite this query into 2-5 semantic variants for better semantic search recall. Also extract intent filters.
+
+Query: "{query}"
+{f'Context: {context_hint}' if context_hint else ''}
+
+Rules:
+- Generate 2-5 rewritten queries with different phrasings
+- Extract filters based on keywords:
+  - "preferência/preference" → type_any includes "preference"
+  - "decisão/decision/arquitetura" → type_any includes "decision"
+  - "tarefa/task" → type_any includes "task"
+  - "recente/recent/últimos" → reduce time_range_days (e.g., 30)
+  - importance keywords → set min_importance
+- Default: no filters except user_id
+
+Respond with this exact JSON structure:
+{{
+  "rewritten_queries": ["variant1", "variant2", ...],
+  "filters": {{
+    "tags_any": ["tag1"],
+    "type_any": ["preference"],
+    "min_importance": 1,
+    "time_range_days": 365
+  }}
+}}"""
+
+    messages = [
+        {"role": "system", "content": "You are a query expansion expert. Respond only with valid JSON."},
+        {"role": "user", "content": prompt}
+    ]
+    
+    result = mh.chat_json(messages, ollama, model=OLLAMA_CHAT_MODEL)
+    
+    if not result:
+        return {
+            "success": True,
+            "rewritten_queries": [query],
+            "filters": {}
+        }
+    
+    return {
+        "success": True,
+        "rewritten_queries": result.get("rewritten_queries", [query]),
+        "filters": result.get("filters", {})
+    }
+
+
 @mcp.tool()
 def memory_rewrite_query(
     query: str,
@@ -448,58 +504,8 @@ def memory_rewrite_query(
     """
     try:
         logger.info("Executing tool: memory_rewrite_query")
-        
-        # Usa contexto de sessão (URL params) ou DEFAULT_USER
-        effective_user = get_effective_user(user_id)
-        
-        ollama = get_ollama_service()
-        
-        prompt = f"""Rewrite this query into 2-5 semantic variants for better semantic search recall. Also extract intent filters.
-
-Query: "{query}"
-{f'Context: {context_hint}' if context_hint else ''}
-
-Rules:
-- Generate 2-5 rewritten queries with different phrasings
-- Extract filters based on keywords:
-  - "preferência/preference" → type_any includes "preference"
-  - "decisão/decision/arquitetura" → type_any includes "decision"
-  - "tarefa/task" → type_any includes "task"
-  - "recente/recent/últimos" → reduce time_range_days (e.g., 30)
-  - importance keywords → set min_importance
-- Default: no filters except user_id
-
-Respond with this exact JSON structure:
-{{
-  "rewritten_queries": ["variant1", "variant2", ...],
-  "filters": {{
-    "tags_any": ["tag1"],
-    "type_any": ["preference"],
-    "min_importance": 1,
-    "time_range_days": 365
-  }}
-}}"""
-
-        messages = [
-            {"role": "system", "content": "You are a query expansion expert. Respond only with valid JSON."},
-            {"role": "user", "content": prompt}
-        ]
-        
-        result = mh.chat_json(messages, ollama, model=OLLAMA_CHAT_MODEL)
-        
-        if not result:
-            # Fallback
-            return json.dumps({
-                "success": True,
-                "rewritten_queries": [query],
-                "filters": {}
-            }, indent=2)
-        
-        return json.dumps({
-            "success": True,
-            "rewritten_queries": result.get("rewritten_queries", [query]),
-            "filters": result.get("filters", {})
-        }, indent=2)
+        result = _do_rewrite_query(query, user_id, context_hint, k)
+        return json.dumps(result, indent=2)
     
     except Exception as e:
         logger.error(f"Error in memory_rewrite_query: {e}", exc_info=True)
@@ -551,14 +557,16 @@ def memory_search(
         ollama = get_ollama_service()
         db = get_db_service(user=effective_user, collection=effective_collection, auto_create=True)
         
-        # If no filters, use rewrite_query to get them
+        # If no filters, use rewrite_query to get them (call internal helper, not the tool wrapper)
         rewritten_queries = [query]
         if not filters:
-            rewrite_result = memory_rewrite_query(query, user_id=effective_user, k=k)
-            rewrite_data = json.loads(rewrite_result)
-            if rewrite_data.get("success"):
-                rewritten_queries = rewrite_data.get("rewritten_queries", [query])
-                filters = rewrite_data.get("filters", {})
+            try:
+                rewrite_data = _do_rewrite_query(query, user_id=effective_user, k=k)
+                if rewrite_data.get("success"):
+                    rewritten_queries = rewrite_data.get("rewritten_queries", [query])
+                    filters = rewrite_data.get("filters", {})
+            except Exception as e:
+                logger.warning(f"Query rewrite failed, using original query: {e}")
         
         # Build Qdrant filter
         qdrant_filter = mh.build_qdrant_filter(effective_user, filters)
@@ -948,17 +956,18 @@ Inclua componentes bem estruturados, tratamento de estados e acessibilidade."""
 def main():
     """Inicia o servidor MCP com FastMCP via HTTP/SSE com suporte a query params"""
     import uvicorn
-    from starlette.applications import Starlette
-    from starlette.routing import Mount, Route
     from starlette.requests import Request
-    from starlette.responses import Response
+    from starlette.responses import Response, PlainTextResponse
     from mcp.server.sse import SseServerTransport
     
     # Cria o transporte SSE
     sse = SseServerTransport("/messages/")
     
-    async def handle_sse(request: Request):
-        """Handler SSE que extrai user e collection da query string"""
+    # Handler SSE como aplicação ASGI pura
+    async def handle_sse(scope, receive, send):
+        """ASGI app para SSE que extrai parâmetros e gerencia o contexto"""
+        request = Request(scope, receive, send)
+        
         # Extrai parâmetros da URL
         user = request.query_params.get("user")
         collection = request.query_params.get("collection")
@@ -978,29 +987,44 @@ def main():
             db = get_db_service(user=effective_user, collection=effective_collection)
             logger.info(f"Coleção efetiva: {db.collection_name}")
         
-        # Processa a conexão SSE
-        async with sse.connect_sse(
-            request.scope, request.receive, request._send
-        ) as streams:
+        # Processa a conexão SSE - o transporte SSE gerencia todo o ciclo de resposta
+        async with sse.connect_sse(scope, receive, send) as streams:
             await mcp._mcp_server.run(
                 streams[0], streams[1], mcp._mcp_server.create_initialization_options()
             )
+    
+    async def handle_messages(scope, receive, send):
+        """ASGI app para mensagens POST"""
+        await sse.handle_post_message(scope, receive, send)
+    
+    # Router ASGI simples que roteia por path
+    async def app(scope, receive, send):
+        """Aplicação ASGI principal com roteamento simples"""
+        if scope["type"] == "lifespan":
+            # Handle lifespan events (startup/shutdown)
+            while True:
+                message = await receive()
+                if message["type"] == "lifespan.startup":
+                    await send({"type": "lifespan.startup.complete"})
+                elif message["type"] == "lifespan.shutdown":
+                    await send({"type": "lifespan.shutdown.complete"})
+                    return
         
-        return Response()
-    
-    async def handle_messages(request: Request):
-        """Handler para mensagens POST"""
-        await sse.handle_post_message(request.scope, request.receive, request._send)
-        return Response()
-    
-    # Cria a aplicação Starlette
-    app = Starlette(
-        debug=True,
-        routes=[
-            Route("/sse", endpoint=handle_sse),
-            Route("/messages/", endpoint=handle_messages, methods=["POST"]),
-        ],
-    )
+        if scope["type"] != "http":
+            return
+        
+        path = scope["path"]
+        method = scope["method"]
+        
+        # Roteamento simples
+        if path == "/sse" and method == "GET":
+            await handle_sse(scope, receive, send)
+        elif path.startswith("/messages/") and method == "POST":
+            await handle_messages(scope, receive, send)
+        else:
+            # 404 para rotas não encontradas
+            response = PlainTextResponse("Not Found", status_code=404)
+            await response(scope, receive, send)
     
     logger.info(f"Iniciando MCP Server com FastMCP em http://{HOST}:{PORT}")
     logger.info(f"Endpoint SSE: http://{HOST}:{PORT}/sse")
