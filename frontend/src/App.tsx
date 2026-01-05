@@ -162,7 +162,7 @@ const Home: React.FC = () => {
             method="POST"
             endpoint="/vectors"
             description="Adicionar memória"
-            requestExample={`POST http://localhost:9000/vectors
+            requestExample={`POST http://127.0.0.1:9000/vectors
 Content-Type: application/json
 
 {
@@ -190,7 +190,7 @@ Content-Type: application/json
             method="POST"
             endpoint="/vectors/search"
             description="Busca semântica"
-            requestExample={`POST http://localhost:9000/vectors/search
+            requestExample={`POST http://127.0.0.1:9000/vectors/search
 Content-Type: application/json
 
 {
@@ -222,7 +222,7 @@ Content-Type: application/json
             method="GET"
             endpoint="/vectors"
             description="Listar memórias"
-            requestExample={`GET http://localhost:9000/vectors?user=patrick&collection=memorias&limit=10`}
+            requestExample={`GET http://127.0.0.1:9000/vectors?user=patrick&collection=memorias&limit=10`}
             responseExample={`[
   {
     "id": "abc123def456",
@@ -244,7 +244,7 @@ Content-Type: application/json
             method="GET"
             endpoint="/collections"
             description="Listar coleções"
-            requestExample={`GET http://localhost:9000/collections`}
+            requestExample={`GET http://127.0.0.1:9000/collections`}
             responseExample={`[
   {
     "name": "memorias",
@@ -263,7 +263,7 @@ Content-Type: application/json
             method="PUT"
             endpoint="/vectors/:id"
             description="Editar memória"
-            requestExample={`PUT http://localhost:9000/vectors/abc123def456
+            requestExample={`PUT http://127.0.0.1:9000/vectors/abc123def456
 Content-Type: application/json
 
 {
@@ -289,7 +289,7 @@ Content-Type: application/json
             method="DELETE"
             endpoint="/vectors/:id"
             description="Excluir memória"
-            requestExample={`DELETE http://localhost:9000/vectors/abc123def456?user=patrick&collection=memorias`}
+            requestExample={`DELETE http://127.0.0.1:9000/vectors/abc123def456?user=patrick&collection=memorias`}
             responseExample={`{
   "message": "Memory deleted successfully",
   "deleted_id": "abc123def456"
@@ -300,7 +300,7 @@ Content-Type: application/json
             method="POST"
             endpoint="/documents/upload"
             description="Upload de documentos"
-            requestExample={`POST http://localhost:9000/documents/upload
+            requestExample={`POST http://127.0.0.1:9000/documents/upload
 Content-Type: multipart/form-data
 
 file: [arquivo.pdf]
@@ -318,7 +318,7 @@ collection: documentos (opcional)`}
             method="GET"
             endpoint="/collections/:name"
             description="Info da coleção"
-            requestExample={`GET http://localhost:9000/collections/memorias`}
+            requestExample={`GET http://127.0.0.1:9000/collections/memorias`}
             responseExample={`{
   "name": "memorias",
   "vectors_count": 42,

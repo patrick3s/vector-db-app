@@ -24,6 +24,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'backend', 'src'))
 from services.vector_db_service import get_db_service
 from services.ollama_service import OllamaService
 
+# Configurações de usuário e coleção via variáveis de ambiente
+MCP_USER = os.getenv("MCP_USER", None)
+MCP_COLLECTION = os.getenv("MCP_COLLECTION", None)
+
+logger.info(f"Configuração MCP - Usuário: {MCP_USER}, Coleção: {MCP_COLLECTION}")
+
 # Inicializa os serviços (lazy loading para evitar erros na inicialização)
 ollama_service = None
 db_service = None
@@ -149,7 +155,7 @@ class MCPServer:
                 
                 ollama = get_ollama_service()
                 embedding = ollama.generate_embedding(text)
-                db = get_db_service()
+                db = get_db_service(user=MCP_USER, collection=MCP_COLLECTION, auto_create=True)
                 vector_id = db.add_vector(text=text, vector=embedding, metadata=metadata)
                 
                 return {
@@ -169,7 +175,7 @@ class MCPServer:
                 
                 ollama = get_ollama_service()
                 query_embedding = ollama.generate_embedding(text)
-                db = get_db_service()
+                db = get_db_service(user=MCP_USER, collection=MCP_COLLECTION, auto_create=True)
                 results = db.search_similar(query_embedding, limit=limit)
                 
                 return {
@@ -185,7 +191,7 @@ class MCPServer:
                 }
             
             elif name == "list_all_vectors":
-                db = get_db_service()
+                db = get_db_service(user=MCP_USER, collection=MCP_COLLECTION, auto_create=True)
                 vectors = db.get_all_vectors()
                 
                 return {
@@ -201,7 +207,7 @@ class MCPServer:
             
             elif name == "delete_vector":
                 vector_id = arguments["vector_id"]
-                db = get_db_service()
+                db = get_db_service(user=MCP_USER, collection=MCP_COLLECTION, auto_create=True)
                 success = db.delete_vector(vector_id)
                 
                 return {
