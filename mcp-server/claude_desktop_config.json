@@ -1,7 +1,14 @@
 {
   "mcpServers": {
-    "vector-db": {
-      "url": "http://localhost:8000/sse?user=patrick&collection=memorias"
+    "vector-db-local": {
+      "command": "python3",
+      "args": [
+        "/Users/patricksoares/Documents/projetos/vector-db-app/mcp-server/server.py"
+      ],
+      "env": {
+        "MCP_USER": "patrick",
+        "MCP_COLLECTION": "memorias"
+      }
     }
   }
 }

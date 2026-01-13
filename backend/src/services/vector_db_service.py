@@ -20,6 +20,9 @@ class VectorDBService:
         self.client = QdrantClient(host=qdrant_host, port=qdrant_port)
         self.collection_name = self._build_collection_name(collection, user)
         
+        # Dimensão do vetor (configurável via env var)
+        self.vector_size = int(os.getenv("VECTOR_DIMENSION", "4096"))
+        
         # Só cria automaticamente se explicitamente solicitado
         if auto_create:
             self.ensure_collection()
@@ -44,10 +47,10 @@ class VectorDBService:
         """Garante que a coleção existe"""
         collections = self.client.get_collections().collections
         if not any(col.name == self.collection_name for col in collections):
-            # Cria coleção com 768 dimensões (tamanho do embedding do nomic-embed-text)
+            # Cria coleção com dimensões configuradas
             self.client.create_collection(
                 collection_name=self.collection_name,
-                vectors_config=VectorParams(size=768, distance=Distance.COSINE),
+                vectors_config=VectorParams(size=self.vector_size, distance=Distance.COSINE),
             )
     
     def collection_exists(self) -> bool:
@@ -68,10 +71,11 @@ class VectorDBService:
         if any(col.name == collection_name for col in collections):
             raise ValueError(f"Coleção '{collection_name}' já existe")
         
-        # Cria a coleção
+        # Cria a coleção com dimensão configurada
+        vector_size = int(os.getenv("VECTOR_DIMENSION", "4096"))
         client.create_collection(
             collection_name=collection_name,
-            vectors_config=VectorParams(size=768, distance=Distance.COSINE),
+            vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
         )
         
         return {"name": collection_name, "status": "created"}

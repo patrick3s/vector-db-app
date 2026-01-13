@@ -1,10 +1,10 @@
-from typing import List
+from typing import List, Optional
 import requests
 import os
 
 class OllamaService:
-    def __init__(self, model: str = "nomic-embed-text"):
-        self.model = model
+    def __init__(self, model: Optional[str] = None):
+        self.model = model or os.getenv("OLLAMA_MODEL", "Qwen3-Embedding")
         # Usa a porta padrão do Ollama (11434)
         self.base_url = os.getenv("OLLAMA_API_URL", "http://localhost:11434")
 
